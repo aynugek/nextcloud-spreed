@@ -38,7 +38,7 @@ const emit = defineEmits<{
 const deviceOptions = computed<NcSelectOption[]>(() => ([
 	...props.devices.filter(device => device.kind === props.kind)
 		.map(device => ({ id: device.deviceId, label: device.label ? device.label : device.fallbackLabel })),
-	{ id: null, label: t('spreed', 'None') },
+	(props.kind === 'audiooutput' ? { id: '', label: t('spreed', 'Default') } : { id: null, label: t('spreed', 'None') }),
 ]))
 const deviceOptionsAvailable = computed(() => deviceOptions.value.length > 1)
 
