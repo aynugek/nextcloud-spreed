@@ -6,8 +6,8 @@
 <template>
 	<NcAppSidebar v-if="isSidebarAvailable"
 		:open="opened"
-		:name="sidebarTitle"
-		:title="sidebarTitle"
+		:name="conversation.displayName"
+		:title="conversation.displayName"
 		:active.sync="activeTab"
 		:class="'active-tab-' + activeTab"
 		:toggle-classes="{ 'chat-button-sidebar-toggle': isInCall }"
@@ -20,30 +20,12 @@
 			<IconMessageText :size="20" />
 			<span v-if="unreadMessagesCounter > 0" class="chat-button-unread-marker" />
 		</template>
-		<!-- search in messages button-->
-		<template v-if="!showSearchMessagesTab && getUserId" #secondary-actions>
-			<NcActionButton type="tertiary"
-				:title="t('spreed', 'Search messages')"
-				:aria-label="t('spreed', 'Search messages')"
-				@click="handleShowSearch(true)">
-				<template #icon>
-					<IconMagnify :size="20" />
-				</template>
-			</NcActionButton>
-		</template>
-		<template v-else-if="getUserId" #tertiary-actions>
-			<NcButton type="tertiary"
-				:title="t('spreed', 'Back')"
-				:aria-label="t('spreed', 'Back')"
-				@click="handleShowSearch(false)">
-				<template #icon>
-					<IconArrowLeft class="bidirectional-icon" :size="20" />
-				</template>
-			</NcButton>
-		</template>
-		<template #description>
-			<InternalSignalingHint />
-			<LobbyStatus v-if="canFullModerate && hasLobbyEnabled" :token="token" />
+		<template #content>
+			<RightSidebarContent :is-user="!!getUserId"
+				:mode="'compact'"
+				:conversation="conversation"
+				:state="showSearchMessagesTab ? 'search' : 'default'"
+				@update:search="handleShowSearch" />
 		</template>
 		<NcAppSidebarTab v-if="showSearchMessagesTab"
 			id="search-messages"
@@ -128,12 +110,10 @@
 
 <script>
 import IconAccountMultiple from 'vue-material-design-icons/AccountMultiple.vue'
-import IconArrowLeft from 'vue-material-design-icons/ArrowLeft.vue'
 import IconCog from 'vue-material-design-icons/Cog.vue'
 import IconDotsCircle from 'vue-material-design-icons/DotsCircle.vue'
 import IconFolderMultipleImage from 'vue-material-design-icons/FolderMultipleImage.vue'
 import IconInformationOutline from 'vue-material-design-icons/InformationOutline.vue'
-import IconMagnify from 'vue-material-design-icons/Magnify.vue'
 import IconMessage from 'vue-material-design-icons/Message.vue'
 import IconMessageText from 'vue-material-design-icons/MessageText.vue'
 
@@ -141,15 +121,13 @@ import { showMessage } from '@nextcloud/dialogs'
 import { emit, subscribe, unsubscribe } from '@nextcloud/event-bus'
 import { t } from '@nextcloud/l10n'
 
-import NcActionButton from '@nextcloud/vue/components/NcActionButton'
 import NcAppSidebar from '@nextcloud/vue/components/NcAppSidebar'
 import NcAppSidebarTab from '@nextcloud/vue/components/NcAppSidebarTab'
 import NcButton from '@nextcloud/vue/components/NcButton'
 
 import BreakoutRoomsTab from './BreakoutRooms/BreakoutRoomsTab.vue'
-import InternalSignalingHint from './InternalSignalingHint.vue'
-import LobbyStatus from './LobbyStatus.vue'
 import ParticipantsTab from './Participants/ParticipantsTab.vue'
+import RightSidebarContent from './RightSidebarContent.vue'
 import SearchMessagesTab from './SearchMessages/SearchMessagesTab.vue'
 import SharedItemsTab from './SharedItems/SharedItemsTab.vue'
 import SipSettings from './SipSettings.vue'
@@ -167,25 +145,21 @@ export default {
 	components: {
 		BreakoutRoomsTab,
 		ChatView,
-		InternalSignalingHint,
-		LobbyStatus,
-		NcActionButton,
 		NcAppSidebar,
 		NcAppSidebarTab,
 		NcButton,
 		ParticipantsTab,
+		RightSidebarContent,
 		SearchMessagesTab,
 		SetGuestUsername,
 		SharedItemsTab,
 		SipSettings,
 		// Icons
 		IconAccountMultiple,
-		IconArrowLeft,
 		IconCog,
 		IconDotsCircle,
 		IconFolderMultipleImage,
 		IconInformationOutline,
-		IconMagnify,
 		IconMessage,
 		IconMessageText,
 	},
@@ -255,12 +229,9 @@ export default {
 				|| (this.conversation.type === CONVERSATION.TYPE.ONE_TO_ONE && supportConversationCreationAll)
 		},
 
-		participantType() {
-			return this.conversation.participantType
-		},
-
 		canFullModerate() {
-			return this.participantType === PARTICIPANT.TYPE.OWNER || this.participantType === PARTICIPANT.TYPE.MODERATOR
+			return this.conversation.participantType === PARTICIPANT.TYPE.OWNER
+				|| this.conversation.participantType === PARTICIPANT.TYPE.MODERATOR
 		},
 
 		isModeratorOrUser() {
@@ -274,10 +245,6 @@ export default {
 		showSIPSettings() {
 			return this.conversation.sipEnabled !== WEBINAR.SIP.DISABLED
 				&& this.conversation.attendeePin
-		},
-
-		hasLobbyEnabled() {
-			return this.conversation.lobbyState === WEBINAR.LOBBY.NON_MODERATORS
 		},
 
 		isOneToOne() {
@@ -334,15 +301,6 @@ export default {
 				title: t('spreed', 'Open chat')
 			}
 		},
-
-		sidebarTitle() {
-			return this.showSearchMessagesTab
-				? t('spreed', 'Search in {name}', { name: this.conversation.displayName }, undefined, {
-					escape: false,
-					sanitize: false,
-				})
-				: this.conversation.displayName
-		}
 	},
 
 	watch: {
@@ -502,15 +460,8 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-
-/* Override style set in server for "#app-sidebar" to match the style set in
- * nextcloud-vue for ".app-sidebar". */
-#app-sidebar {
-	display: flex;
-}
-
-:deep(.app-sidebar-header__description) {
-	flex-direction: column;
+:deep(.app-sidebar-tabs__content) {
+	min-height: inherit !important;
 }
 
 // FIXME upstream: move styles to nextcloud-vue library
