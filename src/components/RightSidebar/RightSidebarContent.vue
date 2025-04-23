@@ -4,22 +4,30 @@
 -->
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 import IconArrowLeft from 'vue-material-design-icons/ArrowLeft.vue'
 import IconMagnify from 'vue-material-design-icons/Magnify.vue'
 
 import { t } from '@nextcloud/l10n'
+import moment from '@nextcloud/moment'
 
+import NcActions from '@nextcloud/vue/components/NcActions'
+import NcActionButton from '@nextcloud/vue/components/NcActionButton'
 import NcButton from '@nextcloud/vue/components/NcButton'
 
 import InternalSignalingHint from './InternalSignalingHint.vue'
 import LobbyStatus from './LobbyStatus.vue'
+import TransitionWrapper from '../UIShared/TransitionWrapper.vue'
 
 import { useIsInCall } from '../../composables/useIsInCall.js'
 import { useStore } from '../../composables/useStore.js'
 import { CONVERSATION, PARTICIPANT, WEBINAR } from '../../constants.ts'
-import type { Conversation } from '../../types/index.ts'
+import { getUserProfile } from '../../services/coreService.ts'
+import type {
+	Conversation,
+	UserProfileData,
+} from '../../types/index.ts'
 
 const props = defineProps<{
 	isUser: boolean,
@@ -32,8 +40,22 @@ const emit = defineEmits<{
 	(event: 'update:search', value: boolean): void
 }>()
 
+// FIXME cache in store until reload
+let isGetProfileAllowed = true
+
 const store = useStore()
 const isInCall = useIsInCall()
+
+const profileLoading = ref(false)
+
+// FIXME cache in store to make less requests
+const profileData = ref<UserProfileData | null>(null)
+const profileActions = computed<UserProfileData['actions']>(() => {
+	if (!profileData.value) {
+		return []
+	}
+	return profileData.value.actions.filter(action => action.id !== 'talk')
+})
 
 const isOneToOneConversation = computed(() => [CONVERSATION.TYPE.ONE_TO_ONE, CONVERSATION.TYPE.ONE_TO_ONE_FORMER].includes(props.conversation.type))
 const isGroupConversation = computed(() => [CONVERSATION.TYPE.GROUP, CONVERSATION.TYPE.PUBLIC].includes(props.conversation.type))
@@ -49,22 +71,85 @@ const sidebarTitle = computed(() => {
 	}
 	return props.conversation.displayName
 })
+
+const profileInformation = computed(() => {
+	if (!profileData.value) {
+		if (isGroupConversation.value) {
+			return [props.conversation.description]
+		}
+		return []
+	}
+
+	const fields = []
+
+	if (profileData.value.role || profileData.value.pronouns) {
+		fields.push(joinFields(profileData.value.role, profileData.value.pronouns))
+	}
+	if (profileData.value.organisation) {
+		fields.push(profileData.value.organisation)
+	}
+
+	const currentTime = moment(new Date().setSeconds(new Date().getTimezoneOffset() * 60 + profileData.value.timezoneOffset))
+	fields.push(joinFields(profileData.value.address, currentTime.format('LT')))
+
+	return fields
+})
+
+
+watch(() => props.conversation.token, async () => {
+	if (!isGetProfileAllowed) {
+		return
+	}
+
+	if (isOneToOneConversation.value) {
+		try {
+			profileLoading.value = true
+			const response = await getUserProfile(props.conversation.name)
+			console.log(response.data.ocs.data)
+			profileData.value = response.data.ocs.data
+		} catch (error) {
+			if (error?.response?.status === 405) {
+				// Method does not exist on current server version
+				// Skip further requests
+				isGetProfileAllowed = false
+			} else {
+				console.error(error)
+			}
+		} finally {
+			profileLoading.value = false
+		}
+	} else {
+		profileData.value = null
+	}
+}, { immediate: true })
+
+function joinFields (fieldA: string | null, fieldB: string | null): string {
+	return [fieldA, fieldB].filter(Boolean).join(' · ')
+}
 </script>
 
 <template>
 	<div class="content">
 		<template v-if="state === 'default'">
 			<!-- search in messages button-->
-			<NcButton v-if="isUser"
-				type="tertiary"
-				class="content__actions"
-				:title="t('spreed', 'Search messages')"
-				:aria-label="t('spreed', 'Search messages')"
-				@click="emit('update:search', true)">
-				<template #icon>
-					<IconMagnify :size="20" />
-				</template>
-			</NcButton>
+			<div class="content__actions">
+				<NcActions v-if="profileActions.length">
+					<NcActionButton v-for="action in profileActions"
+						:key="action.id"
+						:href="action.target">
+						{{ action.title }}
+					</NcActionButton>
+				</NcActions>
+				<NcButton v-if="isUser"
+					type="tertiary"
+					:title="t('spreed', 'Search messages')"
+					:aria-label="t('spreed', 'Search messages')"
+					@click="emit('update:search', true)">
+					<template #icon>
+						<IconMagnify :size="20" />
+					</template>
+				</NcButton>
+			</div>
 
 			<div class="content__header">
 				<h2 :aria-label="sidebarTitle"
@@ -72,6 +157,10 @@ const sidebarTitle = computed(() => {
 					class="content__name">
 					{{ sidebarTitle }}
 				</h2>
+				<p v-for="row in profileInformation"
+					class="content__info">
+					{{ row }}
+				</p>
 			</div>
 
 			<div class="content__description">
@@ -80,7 +169,7 @@ const sidebarTitle = computed(() => {
 			</div>
 		</template>
 		<template v-else-if="isUser && state === 'search'">
-			<div class="content__header">
+			<div class="content__header content__header--row">
 				<NcButton type="tertiary"
 					:title="t('spreed', 'Back')"
 					:aria-label="t('spreed', 'Back')"
@@ -103,28 +192,44 @@ const sidebarTitle = computed(() => {
 <style lang="scss" scoped>
 .content {
 	&__header {
+		flex-grow: 1;
 		display: flex;
+		flex-direction: column;
+		align-items: start;
 		gap: var(--default-grid-baseline);
 		padding-block: calc(2 * var(--default-grid-baseline)) var(--default-grid-baseline);
 		padding-inline-start: var(--default-grid-baseline);
-		padding-inline-end: calc(2 * var(--default-grid-baseline) + var(--default-clickable-area) + var(--app-sidebar-close-button-offset));
-	}
 
-	&__name {
-		margin: 0;
-		padding: 0;
-		font-size: 20px;
-		line-height: var(--default-line-height);
-		overflow: hidden;
-		white-space: nowrap;
-		text-overflow: ellipsis;
+		&--row {
+			flex-direction: row;
+			align-items: center;
+		}
+
+		.content__name {
+			width: 100%;
+			margin: 0;
+			padding-inline-end: calc(var(--default-grid-baseline) + var(--default-clickable-area) + var(--app-sidebar-close-button-offset));
+			font-size: 20px;
+			line-height: var(--default-clickable-area);
+			overflow: hidden;
+			white-space: nowrap;
+			text-overflow: ellipsis;
+			&--has-actions {
+				padding-inline-end: calc(2 * (var(--default-grid-baseline) + var(--default-clickable-area)) + var(--app-sidebar-close-button-offset));
+			}
+		}
+
+		.content__info {
+		}
 	}
 
 	&__actions {
 		position: absolute !important;
-		z-index: 1;
+		z-index: 2;
 		top: calc(2 * var(--default-grid-baseline));
 		inset-inline-end: calc(var(--default-grid-baseline) + var(--app-sidebar-close-button-offset));
+		display: flex;
+		gap: 4px;
 	}
 
 	&__description {
