@@ -328,8 +328,10 @@ export type {
 export type scheduleMeetingParams = Required<operations['room-schedule-meeting']>['requestBody']['content']['application/json']
 export type scheduleMeetingResponse = ApiResponse<operations['room-schedule-meeting']['responses'][200]['content']['application/json']>
 
-// User preferences response
+// User profile / preferences response
 export type {
+	UserProfileData,
+	UserProfileResponse,
 	UserPreferencesParams,
 	UserPreferencesResponse,
 } from './openapi/core/index.ts'
