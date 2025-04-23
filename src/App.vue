@@ -169,7 +169,7 @@ export default {
 		token(newValue, oldValue) {
 			const shouldShowSidebar = BrowserStorage.getItem('sidebarOpen') !== 'false'
 			// Collapse the sidebar if it's a one to one conversation
-			if (this.isOneToOne || !shouldShowSidebar || this.isMobile) {
+			if (!shouldShowSidebar || this.isMobile) {
 				this.sidebarStore.hideSidebar({ cache: false })
 			} else if (shouldShowSidebar) {
 				this.sidebarStore.showSidebar({ cache: false })

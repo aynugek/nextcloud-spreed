@@ -15,6 +15,7 @@ import moment from '@nextcloud/moment'
 import NcActions from '@nextcloud/vue/components/NcActions'
 import NcActionButton from '@nextcloud/vue/components/NcActionButton'
 import NcButton from '@nextcloud/vue/components/NcButton'
+import { useIsDarkTheme } from '@nextcloud/vue/composables/useIsDarkTheme'
 
 import InternalSignalingHint from './InternalSignalingHint.vue'
 import LobbyStatus from './LobbyStatus.vue'
@@ -23,11 +24,15 @@ import TransitionWrapper from '../UIShared/TransitionWrapper.vue'
 import { useIsInCall } from '../../composables/useIsInCall.js'
 import { useStore } from '../../composables/useStore.js'
 import { CONVERSATION, PARTICIPANT, WEBINAR } from '../../constants.ts'
+import { getConversationAvatarOcsUrl } from '../../services/avatarService.ts'
+import { hasTalkFeature } from '../../services/CapabilitiesManager.ts'
 import { getUserProfile } from '../../services/coreService.ts'
 import type {
 	Conversation,
 	UserProfileData,
 } from '../../types/index.ts'
+
+const supportsAvatar = hasTalkFeature('local', 'avatar')
 
 const props = defineProps<{
 	isUser: boolean,
@@ -45,6 +50,7 @@ let isGetProfileAllowed = true
 
 const store = useStore()
 const isInCall = useIsInCall()
+const isDarkTheme = useIsDarkTheme()
 
 const profileLoading = ref(false)
 
@@ -70,6 +76,14 @@ const sidebarTitle = computed(() => {
 		})
 	}
 	return props.conversation.displayName
+})
+
+const avatarUrl = computed(() => {
+	if (!supportsAvatar || props.conversation.isDummyConversation) {
+		return undefined
+	}
+
+	return getConversationAvatarOcsUrl(props.conversation.token, isDarkTheme.value, props.conversation.avatarVersion)
 })
 
 const profileInformation = computed(() => {
@@ -129,7 +143,7 @@ function joinFields (fieldA: string | null, fieldB: string | null): string {
 </script>
 
 <template>
-	<div class="content">
+	<div :class="`content content--${mode}`">
 		<template v-if="state === 'default'">
 			<!-- search in messages button-->
 			<div class="content__actions">
@@ -151,16 +165,27 @@ function joinFields (fieldA: string | null, fieldB: string | null): string {
 				</NcButton>
 			</div>
 
-			<div class="content__header">
-				<h2 :aria-label="sidebarTitle"
-					:title="sidebarTitle"
-					class="content__name">
-					{{ sidebarTitle }}
-				</h2>
-				<p v-for="row in profileInformation"
-					class="content__info">
-					{{ row }}
-				</p>
+			<div class="content__scroller animated">
+				<!-- User / conversation avatar image -->
+				<div class="content__image-wrapper animated">
+					<img class="content__image animated" :src="avatarUrl" :alt="conversation.displayName">
+				</div>
+				<!-- User / conversation profile information -->
+				<div class="content__header">
+					<h2 :aria-label="sidebarTitle"
+						:title="sidebarTitle"
+						class="content__name"
+						:class="{ 'content__name--has-actions': profileActions.length }">
+						{{ sidebarTitle }}
+					</h2>
+					<TransitionWrapper name="fade">
+						<div v-if="mode !== 'compact'" class="content__info">
+							<p v-for="row in profileInformation" class="content__info-row">
+								{{ row }}
+							</p>
+						</div>
+					</TransitionWrapper>
+				</div>
 			</div>
 
 			<div class="content__description">
@@ -191,6 +216,91 @@ function joinFields (fieldA: string | null, fieldB: string | null): string {
 
 <style lang="scss" scoped>
 .content {
+	&--compact {
+		// default
+		.content__scroller {
+		}
+		.content__image-wrapper {
+			width: 0;
+			height: 0;
+			padding: 0;
+		}
+	}
+
+	&--preview {
+		// avatar on the left
+		.content__scroller {
+			flex-wrap: wrap;
+		}
+		.content__header {
+			width: 75%;
+		}
+		.content__image-wrapper {
+			width: 25%;
+			height: 25%;
+			padding: var(--default-grid-baseline);
+		}
+	}
+
+	&--full {
+		// avatar in full size
+		.content__scroller {
+			flex-direction: column;
+			align-items: start;
+		}
+		.content__header {
+			width: 100%;
+			padding-inline: calc(2 * var(--default-grid-baseline));
+		}
+		.content__image-wrapper {
+			width: 100%;
+			height: 300px;
+			padding: 0;
+			&::after {
+				opacity: 1 !important;
+			}
+			.content__image {
+				border-radius: 0;
+			}
+		}
+		// Overwrite NcButton styles
+		& :deep(.button-vue--icon-only),
+		& ~ :deep(.button-vue--icon-only) {
+			filter: invert(1);
+		}
+	}
+
+	&__scroller {
+		display: flex;
+	}
+
+	.content__image-wrapper {
+		position: relative;
+		flex-shrink: 0;
+
+		&::after {
+			position: absolute;
+			inset: 0;
+			content: '';
+			z-index: 1;
+			width: 100%;
+			height: 100%;
+			background: linear-gradient(180deg, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0) 30%);
+			opacity: 0;
+			transition: opacity ease-in-out var(--animation-slow);
+		}
+	}
+
+	.content__image {
+		max-width: 100%;
+		max-height: 100%;
+		width: 100%;
+		height: 100%;
+		border-radius: 50%;
+		object-fit: cover;
+		object-position: top;
+	}
+
 	&__header {
 		flex-grow: 1;
 		display: flex;
@@ -238,5 +348,11 @@ function joinFields (fieldA: string | null, fieldB: string | null): string {
 		align-items: center;
 		margin: 0 10px;
 	}
+}
+
+.animated {
+	transition-property: padding, width, height, border-radius;
+	transition-duration: var(--animation-slow);
+	transition-timing-function: ease-in-out;
 }
 </style>

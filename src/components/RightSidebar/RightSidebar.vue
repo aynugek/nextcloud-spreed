@@ -5,6 +5,7 @@
 
 <template>
 	<NcAppSidebar v-if="isSidebarAvailable"
+		ref="sidebar"
 		:open="opened"
 		:name="conversation.displayName"
 		:title="conversation.displayName"
@@ -22,7 +23,7 @@
 		</template>
 		<template #content>
 			<RightSidebarContent :is-user="!!getUserId"
-				:mode="'compact'"
+				:mode="CONTENT_MODES[contendModeIndex]"
 				:conversation="conversation"
 				:state="showSearchMessagesTab ? 'search' : 'default'"
 				@update:search="handleShowSearch" />
@@ -109,6 +110,8 @@
 </template>
 
 <script>
+import { ref } from 'vue'
+
 import IconAccountMultiple from 'vue-material-design-icons/AccountMultiple.vue'
 import IconCog from 'vue-material-design-icons/Cog.vue'
 import IconDotsCircle from 'vue-material-design-icons/DotsCircle.vue'
@@ -139,6 +142,8 @@ import { hasTalkFeature } from '../../services/CapabilitiesManager.ts'
 import { useSidebarStore } from '../../stores/sidebar.ts'
 
 const supportConversationCreationAll = hasTalkFeature('local', 'conversation-creation-all')
+
+const CONTENT_MODES = ['compact', 'preview', 'full']
 
 export default {
 	name: 'RightSidebar',
@@ -172,7 +177,11 @@ export default {
 	},
 
 	setup() {
+		const contendModeIndex = ref(1)
+
 		return {
+			CONTENT_MODES,
+			contendModeIndex,
 			sidebarStore: useSidebarStore()
 		}
 	},
@@ -380,6 +389,11 @@ export default {
 
 			// Discard notification if the conversation changes or closed
 			this.notifyUnreadMessages(null)
+
+			// In other case switch to other tabs
+			if (!this.isOneToOne && this.contendModeIndex === 2) {
+				this.contendModeIndex = 1
+			}
 		},
 
 		isModeratorOrUser(newValue) {
@@ -394,14 +408,24 @@ export default {
 			}
 		},
 
+		isSidebarAvailable(value) {
+			if (value) {
+				this.$refs.sidebar?.$el?.addEventListener('wheel', this.handleWheelEvent, { capture: false })
+			} else {
+				this.$refs.sidebar?.$el?.removeEventListener('wheel', this.handleWheelEvent, { capture: false })
+			}
+		}
 	},
 
 	mounted() {
 		subscribe('spreed:select-active-sidebar-tab', this.handleUpdateActive)
+		// TODO scroll first, when use wheel events
+		this.$refs.sidebar?.$el?.addEventListener('wheel', this.handleWheelEvent, { capture: false })
 	},
 
 	beforeDestroy() {
 		unsubscribe('spreed:select-active-sidebar-tab', this.handleUpdateActive)
+		this.$refs.sidebar?.$el?.removeEventListener('wheel', this.handleWheelEvent, { capture: false })
 	},
 
 	methods: {
@@ -453,6 +477,18 @@ export default {
 						this.sidebarStore.showSidebar()
 					},
 				})
+			}
+		},
+
+		handleWheelEvent(event) {
+			// do not show avatar preview for group conversation (TODO only if emoji?)
+			const availableModes = this.isOneToOne ? CONTENT_MODES : CONTENT_MODES.slice(0, -1)
+			// if deltaY is negative: scrolling up and expand; otherwise shrink
+			const direction = event.deltaY < 0 ? 1 : -1
+
+			if (availableModes[this.contendModeIndex + direction]) {
+				this.contendModeIndex += direction
+				event.preventDefault()
 			}
 		},
 	},
