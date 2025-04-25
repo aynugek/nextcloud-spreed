@@ -57,7 +57,7 @@
 							<template #icon>
 								<IconCalendar :size="20" />
 							</template>
-							{{ t('spreed', 'Event conversations') }}
+							{{ t('spreed', 'Meeting conversations') }}
 						</NcActionButton>
 
 						<NcActionButton v-if="isFiltered"
