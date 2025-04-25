@@ -81,7 +81,7 @@ import IconUpload from 'vue-material-design-icons/Upload.vue'
 import { showError } from '@nextcloud/dialogs'
 import { FilePickerVue } from '@nextcloud/dialogs/filepicker.js'
 import { t } from '@nextcloud/l10n'
-import { imagePath, generateUrl } from '@nextcloud/router'
+import { imagePath, generateUrl, getBaseUrl } from '@nextcloud/router'
 
 import { VIRTUAL_BACKGROUND } from '../../constants.ts'
 import BrowserStorage from '../../services/BrowserStorage.js'
@@ -131,6 +131,7 @@ export default {
 		return {
 			canUploadBackgrounds: getTalkConfig('local', 'call', 'can-upload-background'),
 			predefinedBackgrounds: getTalkConfig('local', 'call', 'predefined-backgrounds'),
+			predefinedBackgroundsV2: getTalkConfig('local', 'call', 'predefined-backgrounds-v2'),
 			settingsStore: useSettingsStore(),
 		}
 	},
@@ -150,6 +151,10 @@ export default {
 		},
 
 		predefinedBackgroundsURLs() {
+			if (this.predefinedBackgroundsV2) {
+				return this.predefinedBackgroundsV2
+			}
+
 			return this.predefinedBackgrounds.map(fileName => {
 				return imagePath('spreed', 'backgrounds/' + fileName)
 			})
