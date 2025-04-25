@@ -410,9 +410,9 @@ export default {
 
 		isSidebarAvailable(value) {
 			if (value) {
-				this.$refs.sidebar?.$el?.addEventListener('wheel', this.handleWheelEvent, { capture: false })
+				this.$refs.sidebar?.$el?.addEventListener('wheel', this.handleWheelEvent, { capture: true })
 			} else {
-				this.$refs.sidebar?.$el?.removeEventListener('wheel', this.handleWheelEvent, { capture: false })
+				this.$refs.sidebar?.$el?.removeEventListener('wheel', this.handleWheelEvent, { capture: true })
 			}
 		}
 	},
@@ -420,12 +420,12 @@ export default {
 	mounted() {
 		subscribe('spreed:select-active-sidebar-tab', this.handleUpdateActive)
 		// TODO scroll first, when use wheel events
-		this.$refs.sidebar?.$el?.addEventListener('wheel', this.handleWheelEvent, { capture: false })
+		this.$refs.sidebar?.$el?.addEventListener('wheel', this.handleWheelEvent, { capture: true })
 	},
 
 	beforeDestroy() {
 		unsubscribe('spreed:select-active-sidebar-tab', this.handleUpdateActive)
-		this.$refs.sidebar?.$el?.removeEventListener('wheel', this.handleWheelEvent, { capture: false })
+		this.$refs.sidebar?.$el?.removeEventListener('wheel', this.handleWheelEvent, { capture: true })
 	},
 
 	methods: {

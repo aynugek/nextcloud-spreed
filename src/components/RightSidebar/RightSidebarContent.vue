@@ -14,6 +14,7 @@ import moment from '@nextcloud/moment'
 
 import NcActions from '@nextcloud/vue/components/NcActions'
 import NcActionButton from '@nextcloud/vue/components/NcActionButton'
+import NcAppSidebarHeader from '@nextcloud/vue/components/NcAppSidebarHeader'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import { useIsDarkTheme } from '@nextcloud/vue/composables/useIsDarkTheme'
 
@@ -147,7 +148,7 @@ function joinFields (fieldA: string | null, fieldB: string | null): string {
 		<template v-if="state === 'default'">
 			<!-- search in messages button-->
 			<div class="content__actions">
-				<NcActions v-if="profileActions.length">
+				<NcActions v-if="profileActions.length" force-menu>
 					<NcActionButton v-for="action in profileActions"
 						:key="action.id"
 						:href="action.target">
@@ -172,12 +173,12 @@ function joinFields (fieldA: string | null, fieldB: string | null): string {
 				</div>
 				<!-- User / conversation profile information -->
 				<div class="content__header">
-					<h2 :aria-label="sidebarTitle"
+					<NcAppSidebarHeader :name="sidebarTitle"
 						:title="sidebarTitle"
 						class="content__name"
 						:class="{ 'content__name--has-actions': profileActions.length }">
 						{{ sidebarTitle }}
-					</h2>
+					</NcAppSidebarHeader>
 					<TransitionWrapper name="fade">
 						<div v-if="mode !== 'compact'" class="content__info">
 							<p v-for="row in profileInformation" class="content__info-row">
